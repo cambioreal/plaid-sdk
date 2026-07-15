@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>CambioReal.Plaid</RootNamespace>
+    <AssemblyName>CambioReal.Plaid.Client</AssemblyName>
+    <PackageId>CambioReal.Plaid.Client</PackageId>
+    <Description>Cliente .NET tipado para a Plaid API (link tokens, items, balances, identity, transactions, institutions, processor tokens) — mesmo padrão do cambioreal/kira-sdk, ripple-sdk, bs2-sdk, bexs-sdk e cybrid-sdk.</Description>
+    <IsPackable>true</IsPackable>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="CambioReal.Plaid.Client.Tests" />
+  </ItemGroup>
+
+</Project>

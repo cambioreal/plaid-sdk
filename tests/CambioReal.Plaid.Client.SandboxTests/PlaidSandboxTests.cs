@@ -49,6 +49,27 @@ public sealed class PlaidSandboxTests
     }
 
     /// <summary>
+    /// <c>institutions/search</c> real (busca textual) — endpoint DISTINTO de <c>institutions/get</c>
+    /// acima. Gap corrigido junto com o fix de fidelidade da rota do gateway (coverage/plaid.md).
+    /// </summary>
+    [Fact]
+    [Trait("Category", "Sandbox")]
+    public async Task InstitutionsSearchReadLive()
+    {
+        using var provider = BuildServiceProvider();
+        var client = provider.GetRequiredService<PlaidClient>();
+
+        var response = await client.Institutions.SearchAsync(new InstitutionsSearchRequest
+        {
+            Query = "First Platypus",
+            CountryCodes = ["US"],
+        });
+
+        response.Institutions.ShouldNotBeNull();
+        output.WriteLine($"POST institutions/search: 200, {response.Institutions!.Count} resultado(s) — query textual validada.");
+    }
+
+    /// <summary>
     /// Ciclo completo de item com cleanup — validado ao vivo via curl em 2026-07-15 e aqui
     /// repetível via SDK: public token sintético → exchange → balance → remove.
     /// </summary>
@@ -92,6 +113,26 @@ public sealed class PlaidSandboxTests
             balance.Accounts.ShouldNotBeNull();
             balance.Accounts!.Count.ShouldBeGreaterThan(0);
             output.WriteLine($"POST accounts/balance/get: 200, {balance.Accounts!.Count} conta(s) sintética(s).");
+
+            var item = await client.Items.GetAsync(new AccessTokenRequest { AccessToken = exchange.AccessToken! });
+
+            item.Item.ShouldNotBeNull();
+            item.Item!.ItemId.ShouldBe(exchange.ItemId);
+            output.WriteLine($"POST item/get: 200, institution_id={item.Item!.InstitutionId} (introspecção sem endpoint de dado).");
+
+            var accounts = await client.Accounts.GetAsync(new AccountsGetRequest { AccessToken = exchange.AccessToken! });
+
+            accounts.Accounts.ShouldNotBeNull();
+            accounts.Accounts!.Count.ShouldBeGreaterThan(0);
+            output.WriteLine($"POST accounts/get: 200, {accounts.Accounts!.Count} conta(s) (metadados + saldo em cache).");
+
+            // Primeira chamada omite o cursor — devolve o histórico completo (item sintético recém-criado).
+            var sync = await client.Transactions.SyncAsync(new TransactionsSyncRequest { AccessToken = exchange.AccessToken! });
+
+            sync.NextCursor.ShouldNotBeNullOrWhiteSpace();
+            output.WriteLine(
+                $"POST transactions/sync: 200, added={sync.Added?.Count ?? 0}, hasMore={sync.HasMore}, " +
+                $"nextCursor length={sync.NextCursor?.Length} (item sintético — histórico pode vir vazio/pequeno).");
         }
         finally
         {

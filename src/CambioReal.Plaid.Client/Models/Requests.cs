@@ -48,6 +48,17 @@ public sealed record BalanceRequest
     public PlaidAccountIdsOptions? Options { get; init; }
 }
 
+/// <summary>
+/// <c>POST accounts/get</c> — lista contas do item + metadados + saldo em cache. Distinto de
+/// <c>accounts/balance/get</c> (<see cref="BalanceRequest"/>, saldo em tempo real): mesmo corpo,
+/// endpoint diferente na Plaid — DTO próprio para manter 1 tipo por endpoint (convenção deste SDK).
+/// </summary>
+public sealed record AccountsGetRequest
+{
+    public required string AccessToken { get; init; }
+    public PlaidAccountIdsOptions? Options { get; init; }
+}
+
 /// <summary>Bloco <c>options</c> com filtro de contas.</summary>
 public sealed record PlaidAccountIdsOptions
 {
@@ -70,6 +81,41 @@ public sealed record TransactionsRequest
     public PlaidAccountIdsOptions? Options { get; init; }
 }
 
+/// <summary>
+/// <c>POST transactions/sync</c> — modelo incremental por cursor, abordagem recomendada pela
+/// própria Plaid desde 2023 (substitui <c>transactions/get</c> em integrações novas).
+/// </summary>
+public sealed record TransactionsSyncRequest
+{
+    public required string AccessToken { get; init; }
+
+    /// <summary>
+    /// Cursor da sincronização anterior. Omitir/<see langword="null"/> na primeira chamada
+    /// (devolve todo o histórico, paginado por <c>has_more</c>); nas chamadas seguintes, enviar o
+    /// <c>NextCursor</c> da resposta anterior. O valor especial <c>"now"</c> só existe para migrar
+    /// a partir de <c>transactions/get</c> — não aplicável aqui (este SDK não expunha
+    /// <c>transactions/get</c> antes deste cursor, então não há estado legado para migrar).
+    /// </summary>
+    public string? Cursor { get; init; }
+
+    /// <summary>Quantidade de updates por página (1-500; default da Plaid é 100 se omitido).</summary>
+    public int? Count { get; init; }
+
+    public TransactionsSyncOptions? Options { get; init; }
+}
+
+/// <summary>Bloco <c>options</c> de <c>transactions/sync</c>.</summary>
+public sealed record TransactionsSyncOptions
+{
+    public bool? IncludeOriginalDescription { get; init; }
+    public string? PersonalFinanceCategoryVersion { get; init; }
+
+    /// <summary>Só tem efeito em item recém-criado, ainda sem histórico inicial carregado (1-730).</summary>
+    public int? DaysRequested { get; init; }
+
+    public string? AccountId { get; init; }
+}
+
 /// <summary><c>POST institutions/get</c>.</summary>
 public sealed record InstitutionsRequest
 {
@@ -83,6 +129,22 @@ public sealed record InstitutionByIdRequest
 {
     public required string InstitutionId { get; init; }
     public required IReadOnlyList<string> CountryCodes { get; init; }
+}
+
+/// <summary>
+/// <c>POST institutions/search</c> — busca textual por <c>query</c> (até 10 resultados),
+/// DISTINTO de <c>institutions/get</c> (<see cref="InstitutionsRequest"/>, listagem paginada por
+/// <c>count</c>/<c>offset</c>). Antes deste DTO, a rota do gateway chamada "search" na verdade
+/// invocava a semântica de <c>institutions/get</c> — corrigido junto com este gap
+/// (ver <c>coverage/plaid.md</c> §Divergências).
+/// </summary>
+public sealed record InstitutionsSearchRequest
+{
+    public required string Query { get; init; }
+    public required IReadOnlyList<string> CountryCodes { get; init; }
+
+    /// <summary>Filtra por produtos suportados (ex.: <c>["auth","transactions"]</c>).</summary>
+    public IReadOnlyList<string>? Products { get; init; }
 }
 
 /// <summary>

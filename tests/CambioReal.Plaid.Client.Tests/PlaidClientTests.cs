@@ -82,6 +82,45 @@ public sealed class PlaidClientTests
     }
 
     [Fact]
+    public async Task ItemGetParsesMetadataAndPostsToCorrectPath()
+    {
+        var (client, transport) = TestClient.CreateOk("""
+            {"item":{"item_id":"item-1","institution_id":"ins_1","institution_name":"First Platypus Bank",
+              "webhook":null,"products":["auth"],"available_products":["transactions"],
+              "billed_products":["auth"],"update_type":"background",
+              "created_at":"2026-07-15T00:00:00Z"},
+             "status":{"transactions":{"last_successful_update":"2026-07-15T00:00:00Z"}},
+             "request_id":"r-item-1"}
+            """);
+
+        var response = await client.Items.GetAsync(new AccessTokenRequest { AccessToken = "access-1" });
+
+        response.Item!.ItemId.ShouldBe("item-1");
+        response.Item!.InstitutionName.ShouldBe("First Platypus Bank");
+        response.Item!.UpdateType.ShouldBe("background");
+        response.Status.ShouldNotBeNull();
+        transport.Requests.Single().RequestUri!.ToString().ShouldBe("https://sandbox.plaid.com/item/get");
+        transport.Requests.Single().Body!.ShouldContain("\"access_token\":\"access-1\"");
+    }
+
+    [Fact]
+    public async Task AccountsGetParsesAccountsAndItem()
+    {
+        var (client, transport) = TestClient.CreateOk("""
+            {"accounts":[{"account_id":"a-1","name":"Checking","type":"depository",
+              "balances":{"available":250.00,"current":250.00,"iso_currency_code":"USD"}}],
+             "item":{"item_id":"item-1"},"request_id":"r-acc-1"}
+            """);
+
+        var response = await client.Accounts.GetAsync(new AccountsGetRequest { AccessToken = "access-1" });
+
+        response.Accounts![0].AccountId.ShouldBe("a-1");
+        response.Accounts![0].Balances!.Available.ShouldBe(250.00m);
+        response.Item!.ItemId.ShouldBe("item-1");
+        transport.Requests.Single().RequestUri!.ToString().ShouldBe("https://sandbox.plaid.com/accounts/get");
+    }
+
+    [Fact]
     public async Task BalanceParsesDecimalAmounts()
     {
         var (client, transport) = TestClient.CreateOk("""
@@ -99,6 +138,68 @@ public sealed class PlaidClientTests
         response.Accounts![0].Balances!.Available.ShouldBe(100.50m);
         response.Accounts![0].Balances!.IsoCurrencyCode.ShouldBe("USD");
         transport.Requests.Single().Body!.ShouldContain("\"options\":{\"account_ids\":[\"a-1\"]}");
+    }
+
+    [Fact]
+    public async Task TransactionsSyncFirstCallOmitsCursorAndParsesAddedModifiedRemoved()
+    {
+        var (client, transport) = TestClient.CreateOk("""
+            {"accounts":[{"account_id":"a-1"}],
+             "added":[{"transaction_id":"t-1","account_id":"a-1","amount":12.34,"date":"2026-07-01","name":"Coffee"}],
+             "modified":[],
+             "removed":[{"transaction_id":"t-0","account_id":"a-1"}],
+             "next_cursor":"cursor-abc","has_more":false,
+             "transactions_update_status":"HISTORICAL_UPDATE_COMPLETE","request_id":"r-sync-1"}
+            """);
+
+        var response = await client.Transactions.SyncAsync(new TransactionsSyncRequest { AccessToken = "access-1" });
+
+        response.Added!.Single().TransactionId.ShouldBe("t-1");
+        response.Removed!.Single().TransactionId.ShouldBe("t-0");
+        response.NextCursor.ShouldBe("cursor-abc");
+        response.HasMore.ShouldBe(false);
+        response.TransactionsUpdateStatus.ShouldBe("HISTORICAL_UPDATE_COMPLETE");
+
+        var body = transport.Requests.Single().Body!;
+        body.ShouldContain("\"access_token\":\"access-1\"");
+        body.ShouldNotContain("\"cursor\""); // omitido na primeira chamada — WhenWritingNull.
+    }
+
+    [Fact]
+    public async Task TransactionsSyncSubsequentCallSendsCursor()
+    {
+        var (client, transport) = TestClient.CreateOk("""
+            {"added":[],"modified":[],"removed":[],"next_cursor":"cursor-def","has_more":false,
+             "transactions_update_status":"HISTORICAL_UPDATE_COMPLETE","request_id":"r-sync-2"}
+            """);
+
+        await client.Transactions.SyncAsync(new TransactionsSyncRequest
+        {
+            AccessToken = "access-1",
+            Cursor = "cursor-abc",
+        });
+
+        transport.Requests.Single().Body!.ShouldContain("\"cursor\":\"cursor-abc\"");
+    }
+
+    [Fact]
+    public async Task InstitutionsSearchPostsQueryAndParsesResults()
+    {
+        var (client, transport) = TestClient.CreateOk("""
+            {"institutions":[{"institution_id":"ins_1","name":"First Platypus Bank",
+              "products":["auth"],"country_codes":["US"]}],"request_id":"r-search-1"}
+            """);
+
+        var response = await client.Institutions.SearchAsync(new InstitutionsSearchRequest
+        {
+            Query = "platypus",
+            CountryCodes = ["US"],
+        });
+
+        response.Institutions!.Single().Name.ShouldBe("First Platypus Bank");
+        var request = transport.Requests.Single();
+        request.RequestUri!.ToString().ShouldBe("https://sandbox.plaid.com/institutions/search");
+        request.Body!.ShouldContain("\"query\":\"platypus\"");
     }
 
     /// <summary>Forma de erro canônica da Plaid — error_code específico + request_id.</summary>

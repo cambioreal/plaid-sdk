@@ -37,9 +37,16 @@ public sealed class ItemsResource
     /// </summary>
     public Task<RemoveItemResponse> RemoveAsync(AccessTokenRequest request, CancellationToken cancellationToken = default) =>
         client.PostAsync<AccessTokenRequest, RemoveItemResponse>("item/remove", request, cancellationToken);
+
+    /// <summary>
+    /// Introspecção do item: status, <c>institution_id</c>, produtos, webhook configurado — sem
+    /// chamar um endpoint de dado (balance/identity/transactions). <c>POST item/get</c> (leitura).
+    /// </summary>
+    public Task<ItemGetResponse> GetAsync(AccessTokenRequest request, CancellationToken cancellationToken = default) =>
+        client.PostAsync<AccessTokenRequest, ItemGetResponse>("item/get", request, cancellationToken);
 }
 
-/// <summary>Saldos. <c>accounts/balance/get</c>.</summary>
+/// <summary>Contas. <c>accounts/get</c>/<c>accounts/balance/get</c>.</summary>
 public sealed class AccountsResource
 {
     private readonly PlaidClient client;
@@ -49,6 +56,14 @@ public sealed class AccountsResource
     /// <summary>Consulta saldos em tempo real. <c>POST accounts/balance/get</c> (leitura).</summary>
     public Task<BalanceResponse> GetBalanceAsync(BalanceRequest request, CancellationToken cancellationToken = default) =>
         client.PostAsync<BalanceRequest, BalanceResponse>("accounts/balance/get", request, cancellationToken);
+
+    /// <summary>
+    /// Lista contas do item + metadados + saldo em cache. Distinto de <see cref="GetBalanceAsync"/>
+    /// (saldo em tempo real): este endpoint não força nova consulta na instituição.
+    /// <c>POST accounts/get</c> (leitura).
+    /// </summary>
+    public Task<AccountsGetResponse> GetAsync(AccountsGetRequest request, CancellationToken cancellationToken = default) =>
+        client.PostAsync<AccountsGetRequest, AccountsGetResponse>("accounts/get", request, cancellationToken);
 }
 
 /// <summary>Identidade declarada na instituição. <c>identity/get</c>.</summary>
@@ -63,16 +78,24 @@ public sealed class IdentityResource
         client.PostAsync<IdentityRequest, IdentityResponse>("identity/get", request, cancellationToken);
 }
 
-/// <summary>Transações. <c>transactions/get</c>.</summary>
+/// <summary>Transações. <c>transactions/get</c>/<c>transactions/sync</c>.</summary>
 public sealed class TransactionsResource
 {
     private readonly PlaidClient client;
 
     internal TransactionsResource(PlaidClient client) => this.client = client;
 
-    /// <summary>Consulta transações (leitura).</summary>
+    /// <summary>Consulta transações por intervalo de datas (leitura).</summary>
     public Task<TransactionsResponse> GetAsync(TransactionsRequest request, CancellationToken cancellationToken = default) =>
         client.PostAsync<TransactionsRequest, TransactionsResponse>("transactions/get", request, cancellationToken);
+
+    /// <summary>
+    /// Sincronização incremental por cursor — abordagem recomendada pela Plaid desde 2023 para
+    /// integrações novas (em vez de <see cref="GetAsync"/>). Ver <see cref="TransactionsSyncRequest.Cursor"/>
+    /// para o protocolo de paginação. <c>POST transactions/sync</c> (leitura).
+    /// </summary>
+    public Task<TransactionsSyncResponse> SyncAsync(TransactionsSyncRequest request, CancellationToken cancellationToken = default) =>
+        client.PostAsync<TransactionsSyncRequest, TransactionsSyncResponse>("transactions/sync", request, cancellationToken);
 }
 
 /// <summary>Instituições. <c>institutions/*</c>.</summary>
@@ -82,13 +105,20 @@ public sealed class InstitutionsResource
 
     internal InstitutionsResource(PlaidClient client) => this.client = client;
 
-    /// <summary>Lista instituições. <c>POST institutions/get</c> — validado ao vivo (leitura pública).</summary>
+    /// <summary>Lista instituições, paginado por <c>count</c>/<c>offset</c>. <c>POST institutions/get</c> — validado ao vivo (leitura pública).</summary>
     public Task<InstitutionsResponse> GetAsync(InstitutionsRequest request, CancellationToken cancellationToken = default) =>
         client.PostAsync<InstitutionsRequest, InstitutionsResponse>("institutions/get", request, cancellationToken);
 
     /// <summary>Consulta uma instituição. <c>POST institutions/get_by_id</c> (usado pelo legado).</summary>
     public Task<InstitutionByIdResponse> GetByIdAsync(InstitutionByIdRequest request, CancellationToken cancellationToken = default) =>
         client.PostAsync<InstitutionByIdRequest, InstitutionByIdResponse>("institutions/get_by_id", request, cancellationToken);
+
+    /// <summary>
+    /// Busca instituições por texto (<c>query</c>, até 10 resultados) — DISTINTO de
+    /// <see cref="GetAsync"/> (listagem paginada). <c>POST institutions/search</c> (leitura).
+    /// </summary>
+    public Task<InstitutionsSearchResponse> SearchAsync(InstitutionsSearchRequest request, CancellationToken cancellationToken = default) =>
+        client.PostAsync<InstitutionsSearchRequest, InstitutionsSearchResponse>("institutions/search", request, cancellationToken);
 }
 
 /// <summary>Processor tokens — ponte para parceiros (Cybrid). <c>processor/token/create</c>.</summary>

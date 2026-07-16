@@ -129,10 +129,14 @@ public sealed class PlaidSandboxTests
             // Primeira chamada omite o cursor — devolve o histórico completo (item sintético recém-criado).
             var sync = await client.Transactions.SyncAsync(new TransactionsSyncRequest { AccessToken = exchange.AccessToken! });
 
-            sync.NextCursor.ShouldNotBeNullOrWhiteSpace();
+            // Resposta estruturalmente válida. O NextCursor pode vir vazio/nulo num item sintético
+            // recém-criado (transações ainda não prontas — TRANSACTIONS_READY não disparou); validado
+            // ao vivo. O que importa é o endpoint responder 200 e o SDK parsear.
+            sync.ShouldNotBeNull();
+            sync.Added.ShouldNotBeNull();
             output.WriteLine(
-                $"POST transactions/sync: 200, added={sync.Added?.Count ?? 0}, hasMore={sync.HasMore}, " +
-                $"nextCursor length={sync.NextCursor?.Length} (item sintético — histórico pode vir vazio/pequeno).");
+                $"POST transactions/sync: 200, added={sync.Added!.Count}, hasMore={sync.HasMore}, " +
+                $"nextCursor length={sync.NextCursor?.Length ?? 0} (item sintético — histórico/cursor pode vir vazio).");
         }
         finally
         {

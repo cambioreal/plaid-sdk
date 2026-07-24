@@ -44,3 +44,20 @@ SandboxTests.
 
 Somente via `pass cambio-real-v2/providers/plaid/sandbox-env` → variáveis de ambiente. Nunca em
 appsettings/fixtures; nenhum teste imprime secrets, access tokens ou PII.
+
+## Instalação e uso
+
+Pacote no GitHub Packages da org `cambioreal` (feed configurado no `NuGet.config` do repo consumidor):
+
+```bash
+dotnet add package CambioReal.Plaid.Client
+```
+
+```csharp
+// Registro via DI — credenciais vêm de config segura (env/Secret/pass), nunca versionadas.
+builder.Services.AddPlaidClient(builder.Configuration.GetSection(PlaidOptions.SectionName));
+
+// ...injete CambioReal.Plaid.PlaidClient onde precisar.
+```
+
+Também há a sobrecarga `AddPlaidClient(Action<PlaidOptions>)` para configuração inline.

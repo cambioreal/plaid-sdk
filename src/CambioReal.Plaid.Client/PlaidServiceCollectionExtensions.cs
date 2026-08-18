@@ -30,10 +30,18 @@ public static class PlaidServiceCollectionExtensions
         services.AddOptions<PlaidOptions>().Validate(
             options =>
             {
-                options.Validate();
-                return true;
+                try
+                {
+                    options.Validate();
+                    return true;
+                }
+                catch (InvalidOperationException)
+                {
+                    return false;
+                }
             },
-            "A configuração do PlaidOptions é inválida.");
+            "A configuração do PlaidOptions é inválida.")
+            .ValidateOnStart();
 
         services.AddHttpClient("plaid.api", (provider, client) =>
         {

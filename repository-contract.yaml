@@ -1,0 +1,7 @@
+schema_version: repository-contract/v1
+repository_id: 54f864ac-dc11-451b-a1ad-f47594f970aa
+identity:
+  remotes:
+  - github.com/cambioreal/plaid-sdk
+capabilities:
+  manifest: null
